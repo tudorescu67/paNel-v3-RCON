@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RCON Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 12px; }
+    button { padding: 10px 12px; cursor: pointer; }
+    input { padding: 8px; width: 100%; box-sizing: border-box; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; }
+    .row { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <h1>RCON Panel</h1>
+  <div class="card" id="loginCard">
+    <h2>Login RCON (fără fișiere)</h2>
+    <input id="apiBase" placeholder="API Base (ex: https://railway-app.up.railway.app)" />
+    <input id="host" placeholder="Host (ex: 1.2.3.4)">
+    <input id="port" placeholder="Port (ex: 27015)" type="number" value="27015">
+    <input id="password" placeholder="Parolă RCON" type="password">
+    <button style="margin-top:8px" onclick="login()">Conectează</button>
+    <div id="status" style="margin-top:8px;color:#333"></div>
+  </div>
+  <div class="grid">
+    <div class="card" data-needlogin>
+      <h2>Comenzi rapide</h2>
+      <div class="row">
+        <button onclick="post('/api/bhop', { on: true })">Bunnyhop ON</button>
+        <button onclick="post('/api/bhop', { on: false })">Bunnyhop OFF</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button onclick="post('/api/doublejump', { on: true })">DoubleJump ON</button>
+        <button onclick="post('/api/doublejump', { on: false })">DoubleJump OFF</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button onclick="post('/api/6cai', {})">Redă sunet „6 cai”</button>
+        <button onclick="post('/api/exec', { command: 'css_mvp' })">Redă MVP</button>
+      </div>
+    </div>
+    <div class="card" data-needlogin>
+      <h2>Execuție RCON</h2>
+      <input id="cmd" placeholder="Comandă, ex: changelevel de_mirage">
+      <button style="margin-top:8px" onclick="exec()">Execută</button>
+      <pre id="out" style="margin-top:8px"></pre>
+    </div>
+    <div class="card" data-needlogin>
+      <h2>Credite</h2>
+      <input id="creditsSteam" placeholder="SteamID64">
+      <input id="creditsAmt" placeholder="Amount" type="number">
+      <button style="margin-top:8px" onclick="addCredits()">Adaugă credite</button>
+    </div>
+    <div class="card" data-needlogin>
+      <h2>VIP</h2>
+      <input id="vipSteam" placeholder="SteamID64">
+      <input id="vipTier" placeholder="simplu|gold|premium|diamant">
+      <button style="margin-top:8px" onclick="setVip()">Setează VIP</button>
+    </div>
+  </div>
+
+  <script>
+    let loggedIn = false;
+    let apiBase = '';
+    async function refreshStatus() {
+      const res = await fetch((apiBase || '') + '/api/status');
+      const data = await res.json();
+      loggedIn = !!data.configured;
+      renderLoginState();
+    }
+    function renderLoginState() {
+      document.getElementById('status').textContent = loggedIn ? 'Conectat la RCON' : 'Neconectat';
+      document.querySelectorAll('[data-needlogin]').forEach(el => {
+        el.style.opacity = loggedIn ? '1' : '0.5';
+        el.querySelectorAll('button,input').forEach(ctrl => ctrl.disabled = !loggedIn);
+      });
+    }
+    async function login() {
+      apiBase = document.getElementById('apiBase').value.trim();
+      const host = document.getElementById('host').value.trim();
+      const port = parseInt(document.getElementById('port').value, 10);
+      const password = document.getElementById('password').value;
+      const res = await fetch((apiBase || '') + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, password })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        loggedIn = true;
+        renderLoginState();
+      }
+    }
+    async function post(url, body) {
+      const res = await fetch((apiBase || '') + url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+      const data = await res.json();
+      const out = document.getElementById('out');
+      out.textContent = JSON.stringify(data, null, 2);
+    }
+    async function exec() {
+      const cmd = document.getElementById('cmd').value;
+      await post('/api/exec', { command: cmd });
+    }
+    async function addCredits() {
+      const steam = document.getElementById('creditsSteam').value;
+      const amt = parseInt(document.getElementById('creditsAmt').value, 10);
+      await post('/api/addcredits', { steamId64: Number(steam), amount: amt });
+    }
+    async function setVip() {
+      const steam = document.getElementById('vipSteam').value;
+      const tier = document.getElementById('vipTier').value;
+      await post('/api/vip', { steamId64: Number(steam), tier });
+    }
+    refreshStatus();
+  </script>
+</body>
+</html>
